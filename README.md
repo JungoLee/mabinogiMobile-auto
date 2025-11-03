@@ -1,13 +1,14 @@
-# 게임 자동화 스크립트
+# 마비노기 모바일 자동화 스크립트
 
-화면을 캡처하고 특정 텍스트를 인식하여 자동으로 게임을 조작하는 Python 스크립트입니다.
+스토리 기반 게임 자동화 프레임워크입니다. 모니터링을 통해 게임 상태를 확인하고, 정의된 스토리들을 순차적으로 실행합니다.
 
 ## 주요 기능
 
-- **텍스트 인식**: OCR을 사용하여 화면의 텍스트 감지
-- **이미지 인식**: OpenCV로 특정 이미지 패턴 찾기
+- **스토리 기반 실행**: 퀘스트, 물물교환, 주간컨텐츠 등을 스토리로 관리
+- **모듈화 구조**: Core, Stories, Tools로 명확하게 분리
+- **화면 모니터링**: 게임 상태를 실시간으로 감지
 - **자동 조작**: 마우스 클릭, 키보드 입력 자동화
-- **조건부 실행**: 특정 조건 충족 시 원하는 동작 실행
+- **이미지/색상 인식**: 특정 이미지나 픽셀 색상으로 게임 상태 확인
 - **로그 기록**: 모든 동작을 시간과 함께 기록
 
 ## 필요 사항
@@ -15,7 +16,7 @@
 ### 1. Python 설치
 Python 3.8 이상이 필요합니다.
 
-### 2. Tesseract OCR 설치 (필수!)
+### 2. Tesseract OCR 설치 (선택사항 - 텍스트 인식 사용 시)
 
 **Windows:**
 1. [Tesseract 다운로드](https://github.com/UB-Mannheim/tesseract/wiki) 페이지 방문
@@ -47,159 +48,200 @@ cd mabinogiMobile-auto
 pip install -r requirements.txt
 ```
 
-3. **Tesseract 경로 확인**
-`game_automation.py` 파일을 열어서 Tesseract 경로가 맞는지 확인:
-```python
-pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+3. **설정 파일 확인**
+`config.json` 파일에서 실행할 스토리 설정:
+```json
+{
+  "enabled_stories": ["quest", "trade", "daily"],
+  "story_order": ["quest", "trade", "daily"],
+  "pause_between_stories": 3
+}
+```
+
+## 프로젝트 구조
+
+```
+mabinogiMobile-auto/
+├── core/                    # 코어 모듈 (핵심 기능)
+│   ├── monitor.py          # 화면 모니터링
+│   ├── automation.py       # 마우스/키보드 조작
+│   └── story_base.py       # 스토리 베이스 클래스
+├── stories/                 # 스토리 스크립트
+│   ├── quest_story.py      # 퀘스트 자동화
+│   ├── trade_story.py      # 물물교환 자동화
+│   └── daily_story.py      # 주간컨텐츠 자동화
+├── tools/                   # 유틸리티 도구
+│   ├── find_coordinates.py # 좌표 찾기 도구
+│   ├── test_basic.py       # 기본 기능 테스트
+│   ├── simple_monitor.py   # 간단한 모니터
+│   └── realtime_monitor.py # 실시간 모니터
+├── main.py                  # 메인 실행 파일
+├── config.json             # 설정 파일
+└── requirements.txt        # 필요 패키지 목록
 ```
 
 ## 사용 방법
 
-### 1. 좌표 찾기
+### 1. 기본 테스트
 
-먼저 클릭할 위치의 좌표를 찾아야 합니다:
+먼저 기본 기능이 정상 작동하는지 테스트:
 
 ```bash
-python find_coordinates.py
+python tools/test_basic.py
 ```
 
-- 게임 화면에서 클릭할 위치로 마우스를 이동
+### 2. 좌표 찾기
+
+게임에서 클릭할 위치의 좌표를 찾습니다:
+
+```bash
+python tools/find_coordinates.py
+```
+
+- 게임 화면에서 클릭할 위치로 마우스 이동
 - `Space` 키를 눌러 좌표 저장
 - `q` 키로 종료
-- 저장된 좌표를 메모
 
-### 2. 설정 수정
+### 3. 스토리 수정
 
-`game_automation.py` 파일을 열어서 `run_automation()` 메서드를 수정:
+`stories/` 폴더의 스토리 파일을 수정하여 실제 게임에 맞게 조정:
 
 ```python
-def run_automation(self, check_interval=2):
-    self.running = True
-    self.log("===== 게임 자동화 시작 =====")
+# stories/quest_story.py 예시
+def start(self):
+    # Step 1: 퀘스트 창 열기
+    self.automation.press_key('q', delay=1)
 
-    try:
-        while self.running:
-            # 예시: "시작" 텍스트를 찾아서 (250, 200) 위치 클릭
-            if self.find_text_in_region("시작", region=(100, 100, 400, 300)):
-                self.click_at(250, 200, delay=1)
+    # Step 2: 퀘스트 클릭 (좌표는 find_coordinates.py로 찾은 값)
+    self.automation.click(500, 300, delay=1)
 
-            # 예시: "확인" 텍스트 발견 시 Enter 키 입력
-            elif self.find_text_in_region("확인"):
-                self.press_key('enter', delay=1)
+    # Step 3: 수락 버튼 클릭
+    self.automation.click(700, 500, delay=1)
 
-            time.sleep(check_interval)
+    return True
 ```
 
-### 3. 자동화 실행
+### 4. 메인 프로그램 실행
+
+모든 스토리를 순차적으로 실행:
 
 ```bash
-python game_automation.py
+python main.py
 ```
 
 **중단 방법:**
 - 마우스를 화면 왼쪽 위 모서리로 이동
 - 또는 `Ctrl + C`
 
-## 주요 함수 사용법
+### 5. 개별 스토리 실행
 
-### 화면 캡처
-```python
-# 전체 화면
-screenshot = automation.capture_screen()
+특정 스토리만 테스트하고 싶을 때:
 
-# 특정 영역 (x, y, width, height)
-screenshot = automation.capture_screen(region=(100, 100, 400, 300))
+```bash
+python stories/quest_story.py
+python stories/trade_story.py
+python stories/daily_story.py
 ```
 
-### 텍스트 인식
+## 새 스토리 만들기
+
+1. `stories/` 폴더에 새 파일 생성 (예: `my_story.py`)
+2. `StoryBase` 클래스 상속:
+
 ```python
-# 특정 영역에서 텍스트 찾기
-if automation.find_text_in_region("시작", region=(100, 100, 400, 300)):
-    print("'시작' 텍스트 발견!")
+from core.story_base import StoryBase
+
+class MyStory(StoryBase):
+    def __init__(self):
+        super().__init__(
+            name="My Story",
+            description="내가 만든 스토리"
+        )
+
+    def check_precondition(self):
+        """시작 전 조건 확인"""
+        # 실행 가능한지 확인
+        return True
+
+    def start(self):
+        """메인 로직"""
+        # Step 1
+        self.automation.click(100, 200, delay=1)
+
+        # Step 2
+        self.automation.press_key('enter', delay=1)
+
+        # Step 3
+        if self.monitor.check_color_match(500, 300, (255, 0, 0)):
+            self.log("Red pixel found!")
+
+        return True
+
+if __name__ == "__main__":
+    story = MyStory()
+    story.run()
 ```
 
-### 마우스 조작
+3. `main.py`에 스토리 추가
+4. `config.json`에 스토리 이름 추가
+
+## Core 모듈 API
+
+### Monitor (화면 모니터링)
+
 ```python
-# 일반 클릭
-automation.click_at(x=500, y=300)
+from core.monitor import Monitor
+monitor = Monitor()
 
-# 더블 클릭
-automation.click_at(x=500, y=300, clicks=2)
+# 화면 캡처
+screenshot = monitor.capture()
 
-# 우클릭
-automation.click_at(x=500, y=300, button='right')
+# 특정 좌표의 픽셀 색상 확인
+color = monitor.get_pixel_color(x, y)
+
+# 색상 매칭 확인
+is_match = monitor.check_color_match(x, y, (255, 0, 0), threshold=30)
+
+# 이미지 찾기
+location = monitor.find_image_on_screen('button.png', confidence=0.8)
+
+# 이미지 나타날 때까지 대기
+location = monitor.wait_for_image('button.png', timeout=10)
+
+# 색상 나타날 때까지 대기
+found = monitor.wait_for_color(x, y, (0, 255, 0), timeout=10)
 ```
 
-### 키보드 입력
+### Automation (자동 조작)
+
 ```python
-# 단일 키
-automation.press_key('enter')
-automation.press_key('space')
+from core.automation import Automation
+automation = Automation()
 
-# 조합키
-automation.press_hotkey('ctrl', 'c')
-automation.press_hotkey('alt', 'tab')
+# 클릭
+automation.click(x, y, clicks=1, button='left', delay=0)
+automation.double_click(x, y)
+automation.right_click(x, y)
 
-# 텍스트 입력
-automation.type_text('hello world')
-```
+# 마우스 이동
+automation.move_to(x, y, duration=0.5)
 
-### 이미지 찾기
-```python
-# 화면에서 이미지 찾기
-result = automation.find_image('button.png', threshold=0.8)
-if result:
-    x, y, w, h = result
-    automation.click_at(x + w//2, y + h//2)  # 중앙 클릭
-```
+# 드래그
+automation.drag_to(x, y, duration=0.5)
 
-## 설정 파일 (config.json)
+# 키보드
+automation.press_key('enter', delay=0)
+automation.hotkey('ctrl', 'c', delay=0)
+automation.type_text('hello', interval=0.1)
 
-자동화 동작을 JSON 파일로 관리할 수 있습니다:
+# 스크롤
+automation.scroll(amount=10)  # 양수: 위로, 음수: 아래로
 
-```json
-{
-  "actions": [
-    {
-      "name": "게임 시작 버튼 클릭",
-      "enabled": true,
-      "trigger_text": "시작",
-      "trigger_region": [100, 100, 400, 300],
-      "action_type": "click",
-      "action_params": {
-        "x": 250,
-        "y": 200,
-        "delay": 1
-      }
-    }
-  ]
-}
-```
+# 대기
+automation.wait(seconds=2)
 
-## 실전 예제
-
-### 예제 1: 퀘스트 자동 수락
-```python
-# "퀘스트 수락" 버튼을 찾아서 클릭
-if automation.find_text_in_region("퀘스트", region=(800, 600, 200, 100)):
-    automation.click_at(900, 650, delay=0.5)
-    automation.click_at(900, 700, delay=1)  # 확인 버튼
-```
-
-### 예제 2: 아이템 수집
-```python
-# "아이템 획득" 메시지 확인
-if automation.find_text_in_region("획득"):
-    automation.press_key('space', delay=0.5)  # 다음 진행
-```
-
-### 예제 3: 전투 자동화
-```python
-# 적 발견 시 스킬 사용
-if automation.find_text_in_region("적"):
-    automation.press_key('1', delay=0.5)  # 스킬 1
-    automation.press_key('2', delay=0.5)  # 스킬 2
-    automation.click_at(640, 360)  # 공격 클릭
+# 이미지 위치 클릭
+automation.click_image(image_location)
 ```
 
 ## 문제 해결
@@ -234,24 +276,25 @@ TesseractNotFoundError: tesseract is not installed
 - `pyautogui.FAILSAFE = True`: 마우스를 모서리로 이동하면 중단
 - 언제든지 `Ctrl + C`로 중단 가능
 
-## 파일 구조
+## 설정 파일 (config.json)
 
+```json
+{
+  "enabled_stories": ["quest", "trade", "daily"],
+  "story_order": ["quest", "trade", "daily"],
+  "monitor_before_start": true,
+  "monitor_duration": 5,
+  "pause_between_stories": 3,
+  "auto_restart": false
+}
 ```
-mabinogiMobile-auto/
-├── game_automation.py      # 메인 자동화 스크립트
-├── find_coordinates.py     # 좌표 찾기 도구
-├── config.json            # 설정 파일
-├── requirements.txt       # 필요 패키지 목록
-└── README.md             # 이 문서
-```
 
-## 업데이트 계획
-
-- [ ] GUI 인터페이스 추가
-- [ ] 더 많은 이미지 인식 옵션
-- [ ] 설정 파일 기반 자동화
-- [ ] 로그 파일 저장
-- [ ] 스크린샷 자동 저장
+- `enabled_stories`: 실행할 스토리 목록
+- `story_order`: 스토리 실행 순서
+- `monitor_before_start`: 시작 전 화면 모니터링 여부
+- `monitor_duration`: 모니터링 시간 (초)
+- `pause_between_stories`: 스토리 간 대기 시간 (초)
+- `auto_restart`: 모든 스토리 완료 후 자동 재시작 여부
 
 ## 라이선스
 
