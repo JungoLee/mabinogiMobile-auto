@@ -1,0 +1,46 @@
+{
+  "tesseract_path": "C:\\Program Files\\Tesseract-OCR\\tesseract.exe",
+  "check_interval": 2,
+  "language": "kor+eng",
+  "failsafe": true,
+  "pause_between_actions": 0.5,
+
+  "actions": [
+    {
+      "name": "게임 시작 버튼 클릭",
+      "enabled": true,
+      "trigger_text": "시작",
+      "trigger_region": [100, 100, 400, 300],
+      "action_type": "click",
+      "action_params": {
+        "x": 250,
+        "y": 200,
+        "delay": 1
+      }
+    },
+    {
+      "name": "확인 버튼 처리",
+      "enabled": true,
+      "trigger_text": "확인",
+      "trigger_region": null,
+      "action_type": "key",
+      "action_params": {
+        "key": "enter",
+        "delay": 1
+      }
+    },
+    {
+      "name": "준비 완료 처리",
+      "enabled": true,
+      "trigger_text": "준비완료",
+      "trigger_region": null,
+      "action_type": "click_and_key",
+      "action_params": {
+        "click_x": 500,
+        "click_y": 300,
+        "key": "space",
+        "delay": 1
+      }
+    }
+  ]
+}
