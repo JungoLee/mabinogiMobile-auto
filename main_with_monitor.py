@@ -21,6 +21,7 @@ if sys.platform == 'win32':
 
 from core.monitor import Monitor
 from core.automation import Automation
+from core.click_tracker import ClickTracker
 
 # 스토리 임포트
 from stories.quest_story import QuestStory
@@ -40,6 +41,10 @@ class MonitorThread(threading.Thread):
         self.automation_status = "대기"
         self.current_story = ""
         self.story_progress = ""
+        self.click_tracker = ClickTracker()  # 클릭 추적기 (automation과 공유)
+        self.story_trigger = None  # 스토리 실행 트리거
+        self.buttons = []  # 버튼 목록 [(x, y, width, height, label, story_name), ...]
+        self.paused = False  # 일시정지 상태
 
         if not os.path.exists(self.screenshot_dir):
             os.makedirs(self.screenshot_dir)
@@ -72,6 +77,34 @@ class MonitorThread(threading.Thread):
         self.current_story = story
         self.story_progress = progress
 
+    def draw_button(self, img, x, y, width, height, text, bg_color=(50, 50, 50),
+                    text_color=(255, 255, 255), border_color=(100, 100, 100)):
+        """버튼 그리기"""
+        # 버튼 배경
+        cv2.rectangle(img, (x, y), (x + width, y + height), bg_color, -1)
+        # 버튼 테두리
+        cv2.rectangle(img, (x, y), (x + width, y + height), border_color, 2)
+
+        # 텍스트 중앙 정렬
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 0.40  # 0.45에서 0.40으로 감소
+        thickness = 1
+        (text_width, text_height), baseline = cv2.getTextSize(text, font, font_scale, thickness)
+        text_x = x + (width - text_width) // 2
+        text_y = y + (height + text_height) // 2
+
+        cv2.putText(img, text, (text_x, text_y), font, font_scale, text_color, thickness)
+
+    def mouse_callback(self, event, x, y, flags, param):
+        """마우스 클릭 콜백 - 버튼 클릭 처리"""
+        if event == cv2.EVENT_LBUTTONDOWN:
+            # 버튼 클릭 확인
+            for btn_x, btn_y, btn_w, btn_h, btn_label, story_name in self.buttons:
+                if btn_x <= x <= btn_x + btn_w and btn_y <= y <= btn_y + btn_h:
+                    print(f"[모니터] 버튼 클릭: {btn_label}")
+                    self.story_trigger = story_name
+                    return
+
     def run(self):
         """모니터링 루프"""
         frame_count = 0
@@ -79,6 +112,20 @@ class MonitorThread(threading.Thread):
         fps_list = []
 
         print("[모니터] 실시간 모니터 시작 중...")
+
+        # OpenCV 창 생성 및 마우스 콜백 설정
+        cv2.namedWindow('Automation Monitor')
+        cv2.setMouseCallback('Automation Monitor', self.mouse_callback)
+
+        # 버튼 정의 (x, y, width, height, label, story_name)
+        # 화면이 60% 스케일이므로 실제 좌표의 0.6배
+        button_y_start = 162  # 270을 60%로 조정
+        button_spacing = 45
+        self.buttons = [
+            (10, button_y_start, 140, 35, "Quest Story", "quest"),
+            (160, button_y_start, 140, 35, "Trade Story", "trade"),
+            (310, button_y_start, 140, 35, "Daily Story", "daily"),
+        ]
 
         try:
             while self.running:
@@ -101,8 +148,8 @@ class MonitorThread(threading.Thread):
                 else:
                     pixel_color = (0, 0, 0)  # 화면 밖이면 검은색
 
-                # 화면 크기 조정
-                scale = 0.5
+                # 화면 크기 조정 (50%에서 60%로 증가)
+                scale = 0.6
                 new_width = int(width * scale)
                 new_height = int(height * scale)
                 frame = cv2.resize(frame, (new_width, new_height))
@@ -123,6 +170,13 @@ class MonitorThread(threading.Thread):
                 elapsed = time.time() - start_time
                 elapsed_str = str(datetime.timedelta(seconds=int(elapsed)))
 
+                # 클릭 영역 가이드 (화면의 50%~100% 영역을 빨간 네모로 표시)
+                guide_x1 = int(new_width * 0.5)  # 50% 지점
+                guide_y1 = int(new_height * 0.5)  # 50% 지점
+                guide_x2 = new_width  # 100%
+                guide_y2 = new_height  # 100%
+                cv2.rectangle(frame, (guide_x1, guide_y1), (guide_x2, guide_y2), (0, 0, 255), 2)
+
                 # 십자선 그리기
                 if self.show_crosshair:
                     cv2.line(frame, (0, scaled_mouse_y), (new_width, scaled_mouse_y), (0, 255, 255), 1)
@@ -130,19 +184,44 @@ class MonitorThread(threading.Thread):
                     cv2.circle(frame, (scaled_mouse_x, scaled_mouse_y), 10, (0, 255, 255), 2)
                     cv2.circle(frame, (scaled_mouse_x, scaled_mouse_y), 2, (0, 255, 255), -1)
 
-                # 정보 패널 배경
-                panel_height = 340
+                # 자동화 클릭 마크 그리기 (3초 동안 표시)
+                current_time = time.time()
+                recent_clicks = self.click_tracker.get_recent_clicks()
+
+                # 클릭 마크 그리기
+                for click_x, click_y, click_time in recent_clicks:
+                    # 스케일 적용 (실제 좌표를 모니터 좌표로 변환)
+                    mark_x = int(click_x * scale)
+                    mark_y = int(click_y * scale)
+
+                    # 시간 경과
+                    elapsed_time = current_time - click_time
+                    alpha = 1.0 - (elapsed_time / 3.0)
+
+                    # 빨간 점 (중심)
+                    cv2.circle(frame, (mark_x, mark_y), 5, (0, 0, 255), -1)
+                    # 외곽 원 (크기가 시간에 따라 커짐)
+                    radius = int(10 + (elapsed_time * 10))
+                    cv2.circle(frame, (mark_x, mark_y), radius, (0, 0, 255), 2)
+                    # X 표시
+                    size = 8
+                    cv2.line(frame, (mark_x - size, mark_y - size), (mark_x + size, mark_y + size), (0, 0, 255), 2)
+                    cv2.line(frame, (mark_x + size, mark_y - size), (mark_x - size, mark_y + size), (0, 0, 255), 2)
+
+                # 정보 패널 배경 (버튼 공간 포함)
+                panel_height = 310
                 overlay = frame.copy()
-                cv2.rectangle(overlay, (0, 0), (450, panel_height), (0, 0, 0), -1)
+                cv2.rectangle(overlay, (0, 0), (460, panel_height), (0, 0, 0), -1)
                 cv2.addWeighted(overlay, 0.7, frame, 0.3, 0, frame)
 
                 # 정보 표시
                 y_offset = 25
+                font_size = 0.42  # 폰트 크기 더 감소
 
                 # 제목
                 timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 y_offset += self.draw_text_with_background(frame, f"AUTO MONITOR - {timestamp}",
-                                                           (10, y_offset), 0.5, 1,
+                                                           (10, y_offset), font_size, 1,
                                                            (0, 255, 255), (0, 50, 100))
 
                 # 자동화 상태 (영문 매핑)
@@ -151,45 +230,59 @@ class MonitorThread(threading.Thread):
                     "준비완료": "Ready",
                     "실행중": "Running",
                     "대기중": "Waiting",
-                    "완료": "Completed"
+                    "완료": "Completed",
+                    "일시정지": "PAUSED"
                 }
                 status_en = status_map.get(self.automation_status, self.automation_status)
-                status_color = (0, 255, 0) if self.automation_status == "실행중" else (255, 200, 0)
+
+                # 상태 색상
+                if self.automation_status == "실행중":
+                    status_color = (0, 255, 0)  # 초록색
+                elif self.automation_status == "일시정지":
+                    status_color = (0, 165, 255)  # 주황색 (일시정지)
+                else:
+                    status_color = (255, 200, 0)  # 노란색
                 y_offset += self.draw_text_with_background(frame, "=== AUTOMATION ===",
-                                                           (10, y_offset), 0.5, 1,
+                                                           (10, y_offset), font_size, 1,
                                                            (255, 200, 0), (0, 0, 0))
                 y_offset += self.draw_text_with_background(frame, f"Status: {status_en}",
-                                                           (10, y_offset), 0.5, 1, status_color)
+                                                           (10, y_offset), font_size, 1, status_color)
                 if self.current_story:
                     y_offset += self.draw_text_with_background(frame, f"Story: {self.current_story}",
-                                                               (10, y_offset), 0.5, 1)
+                                                               (10, y_offset), font_size, 1)
                 if self.story_progress:
                     y_offset += self.draw_text_with_background(frame, f"Step: {self.story_progress}",
-                                                               (10, y_offset), 0.5, 1)
+                                                               (10, y_offset), font_size, 1)
 
                 # 마우스 정보
                 y_offset += 10
                 y_offset += self.draw_text_with_background(frame, "=== MOUSE ===",
-                                                           (10, y_offset), 0.5, 1,
+                                                           (10, y_offset), font_size, 1,
                                                            (255, 200, 0), (0, 0, 0))
                 y_offset += self.draw_text_with_background(frame, f"Position: ({mouse_x}, {mouse_y})",
-                                                           (10, y_offset), 0.5, 1)
+                                                           (10, y_offset), font_size, 1)
                 y_offset += self.draw_text_with_background(frame, f"RGB: {pixel_color}",
-                                                           (10, y_offset), 0.5, 1)
+                                                           (10, y_offset), font_size, 1)
                 y_offset += self.draw_text_with_background(frame, f"HEX: #{pixel_color[0]:02X}{pixel_color[1]:02X}{pixel_color[2]:02X}",
-                                                           (10, y_offset), 0.5, 1)
+                                                           (10, y_offset), font_size, 1)
 
-                # 시스템 정보
+                # FPS 및 경과 시간
                 y_offset += 10
-                y_offset += self.draw_text_with_background(frame, "=== SYSTEM ===",
-                                                           (10, y_offset), 0.5, 1,
-                                                           (255, 200, 0), (0, 0, 0))
-                y_offset += self.draw_text_with_background(frame, f"FPS: {avg_fps:.1f}",
-                                                           (10, y_offset), 0.5, 1)
-                y_offset += self.draw_text_with_background(frame, f"Frame: {frame_count}",
-                                                           (10, y_offset), 0.5, 1)
-                y_offset += self.draw_text_with_background(frame, f"Elapsed: {elapsed_str}",
-                                                           (10, y_offset), 0.5, 1)
+                y_offset += self.draw_text_with_background(frame, f"FPS: {avg_fps:.1f}  Elapsed: {elapsed_str}",
+                                                           (10, y_offset), font_size, 1)
+
+                # 버튼 그리기
+                for btn_x, btn_y, btn_w, btn_h, btn_label, story_name in self.buttons:
+                    # 버튼 색상 (현재 실행 중인 스토리면 초록색)
+                    if self.current_story and story_name in self.current_story.lower():
+                        bg_color = (0, 100, 0)  # 초록색
+                        border_color = (0, 200, 0)
+                    else:
+                        bg_color = (50, 50, 50)  # 회색
+                        border_color = (100, 100, 100)
+
+                    self.draw_button(frame, btn_x, btn_y, btn_w, btn_h, btn_label,
+                                   bg_color=bg_color, border_color=border_color)
 
                 # 색상 프리뷰 (우측 상단)
                 color_preview_size = 80
@@ -201,9 +294,12 @@ class MonitorThread(threading.Thread):
 
                 # 컨트롤 안내 (하단)
                 controls_y = new_height - 30
-                self.draw_text_with_background(frame, "[Ctrl+C] Quit Only",
-                                              (10, controls_y), 0.5, 1,
-                                              (255, 100, 100), (50, 50, 50))
+                pause_text = "[Paused]" if self.paused else ""
+                control_text = f"[ESC]Pause/Resume {pause_text}  [Ctrl+C]Quit"
+                control_color = (0, 165, 255) if self.paused else (255, 255, 0)
+                self.draw_text_with_background(frame, control_text,
+                                              (10, controls_y), font_size, 1,
+                                              control_color, (50, 50, 50))
 
                 # 화면 표시
                 cv2.imshow('Automation Monitor', frame)
@@ -214,9 +310,18 @@ class MonitorThread(threading.Thread):
                     self.running = False
                     break
 
-                # 키 입력 처리 - waitKey는 필수 (창 업데이트를 위해)
-                # 하지만 키 입력은 무시하고 Ctrl+C로만 종료
-                cv2.waitKey(1)
+                # 키 입력 처리
+                key = cv2.waitKey(1) & 0xFF
+
+                # ESC 키로 일시정지/재개
+                if key == 27:  # ESC 키
+                    self.paused = not self.paused
+                    status_text = "일시정지됨" if self.paused else "재개됨"
+                    print(f"[모니터] 자동화 {status_text}")
+                    if self.paused:
+                        self.update_status("일시정지", self.current_story, "Paused by user")
+                    else:
+                        self.update_status("실행중", self.current_story, "Resumed")
 
             print(f"[모니터] While 루프 종료됨. Running flag: {self.running}, Frame count: {frame_count}")
 
@@ -310,7 +415,26 @@ class MainRunner:
         else:
             self.log(f"❌ 스토리 실패: {story.name}")
 
+        if self.monitor_thread:
+            self.monitor_thread.update_status("완료", story.name, "Finished")
+
         return result
+
+    def run_story_by_name(self, story_name):
+        """이름으로 스토리 실행"""
+        story_map = {
+            "quest": QuestStory,
+            "trade": TradeStory,
+            "daily": DailyStory
+        }
+
+        if story_name not in story_map:
+            self.log(f"❌ 알 수 없는 스토리: {story_name}")
+            return False
+
+        self.log(f"버튼으로 스토리 시작: {story_name}")
+        story = story_map[story_name]()
+        return self.run_story(story)
 
     def run_all_stories(self):
         """모든 스토리 순차 실행"""
@@ -399,9 +523,22 @@ class MainRunner:
             self.log("모니터 창에서 Q를 누르거나 Ctrl+C로 종료하세요.")
             self.log("=" * 70)
 
-            # 모니터 스레드가 종료될 때까지 대기
+            # 모니터 스레드가 종료될 때까지 대기 (버튼 클릭 감지)
             while self.monitor_thread and self.monitor_thread.is_alive():
-                time.sleep(1)
+                # 일시정지 상태 확인
+                if self.monitor_thread.paused:
+                    time.sleep(0.5)
+                    continue
+
+                # 버튼 클릭으로 스토리 실행 요청 확인
+                if self.monitor_thread.story_trigger:
+                    story_name = self.monitor_thread.story_trigger
+                    self.monitor_thread.story_trigger = None  # 트리거 초기화
+
+                    self.log(f"\n[버튼] {story_name} 스토리 실행 요청됨")
+                    self.run_story_by_name(story_name)
+
+                time.sleep(0.5)  # 0.5초마다 체크
 
             # 자동 재시작
             if self.config.get("auto_restart", False):

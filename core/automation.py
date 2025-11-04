@@ -14,6 +14,8 @@ if sys.platform == 'win32':
     if not isinstance(sys.stdout, io.TextIOWrapper):
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
+from core.click_tracker import ClickTracker
+
 
 class Automation:
     """자동화 조작 코어 클래스"""
@@ -27,6 +29,7 @@ class Automation:
         pyautogui.PAUSE = pause_time
         pyautogui.FAILSAFE = failsafe
         self.log_enabled = True
+        self.click_tracker = ClickTracker()  # 클릭 추적기
 
     def log(self, message):
         """로그 출력"""
@@ -45,6 +48,7 @@ class Automation:
             delay: 클릭 후 대기 시간
         """
         pyautogui.click(x, y, clicks=clicks, button=button)
+        self.click_tracker.add_click(x, y)  # 클릭 위치 추적
         self.log(f"Click at ({x}, {y}) - button: {button}, clicks: {clicks}")
         if delay > 0:
             time.sleep(delay)
