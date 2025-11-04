@@ -5,8 +5,8 @@
   "failsafe": true,
   "pause_between_actions": 0.5,
 
-  "enabled_stories": ["quest", "trade", "daily"],
-  "story_order": ["quest", "trade", "daily"],
+  "enabled_stories": [],
+  "story_order": [],
   "monitor_before_start": true,
   "monitor_duration": 5,
   "pause_between_stories": 3,
