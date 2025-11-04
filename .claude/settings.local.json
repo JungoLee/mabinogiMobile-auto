@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python main.py:*)",
+      "Bash(python tools/auto_monitor.py:*)",
+      "Bash(python tools/realtime_monitor.py:*)",
+      "Bash(python main_with_monitor.py:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
