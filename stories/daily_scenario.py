@@ -4,12 +4,12 @@ Daily Scenario Story
 매일 시나리오 - 캐릭터 선택 및 게임 시작
 """
 
-import time
-import pyautogui
-import cv2
-import numpy as np
-import pytesseract
+from typing import Optional, List, Tuple
+
 from core.story_base import StoryBase
+from core.image_detector import ImageDetector
+from core.ocr_processor import OCRProcessor
+from core.constants import IMAGE_CONFIDENCE_THRESHOLD
 
 
 class DailyScenarioStory(StoryBase):
@@ -17,65 +17,55 @@ class DailyScenarioStory(StoryBase):
 
     def __init__(self):
         super().__init__("Daily Scenario")
-        self.detection_area = None  # Main에서 전달받을 감지 영역
+        self.detection_area: Optional[Tuple[int, int, int, int]] = None
+        self.image_detector = ImageDetector()
+        self.ocr_processor = OCRProcessor()
 
         # 이미지 템플릿 경로
         self.template_game_start = "assets/images/UI/game_start.png"
         self.template_game_start_yellow = "assets/images/UI/game_start_yellow.png"
         self.template_currency_example = "assets/images/system/character_choice_coins.png"
 
-    def set_detection_area(self, area):
+    def set_detection_area(self, area: Tuple[int, int, int, int]) -> None:
         """감지 영역 설정 (x1, y1, x2, y2)"""
         self.detection_area = area
         self.log(f"Detection area set: {area}")
 
-    def find_image_in_area(self, template_path, confidence=0.8):
+    def find_image_in_area(
+        self,
+        template_path: str,
+        confidence: float = IMAGE_CONFIDENCE_THRESHOLD
+    ) -> Optional[Tuple[int, int]]:
         """
         감지 영역 내에서 이미지 찾기
+
+        Args:
+            template_path: 템플릿 이미지 경로
+            confidence: 최소 신뢰도
 
         Returns:
             (x, y) 중심 좌표 또는 None
         """
         try:
-            # 전체 화면 캡처
-            screenshot = pyautogui.screenshot()
+            result = self.image_detector.find_image_in_area(
+                template_path,
+                area=self.detection_area,
+                confidence=confidence
+            )
 
-            # 감지 영역으로 제한
-            if self.detection_area:
-                x1, y1, x2, y2 = self.detection_area
-                screenshot = screenshot.crop((x1, y1, x2, y2))
-                offset_x, offset_y = x1, y1
+            if result:
+                x, y = result
+                self.log(f"✓ Image found at ({x}, {y})")
+                return result
             else:
-                offset_x, offset_y = 0, 0
-
-            # OpenCV 형식 변환
-            screen = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
-            template = cv2.imread(template_path)
-
-            if template is None:
-                self.log(f"⚠ Template not found: {template_path}")
-                return None
-
-            # 템플릿 매칭
-            result = cv2.matchTemplate(screen, template, cv2.TM_CCOEFF_NORMED)
-            min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
-
-            if max_val >= confidence:
-                h, w = template.shape[:2]
-                center_x = max_loc[0] + w // 2 + offset_x
-                center_y = max_loc[1] + h // 2 + offset_y
-
-                self.log(f"✓ Image found at ({center_x}, {center_y}), confidence: {max_val:.2f}")
-                return (center_x, center_y)
-            else:
-                self.log(f"✗ Image not found (best match: {max_val:.2f})")
+                self.log(f"✗ Image not found: {template_path}")
                 return None
 
         except Exception as e:
             self.log(f"❌ Error finding image: {e}")
             return None
 
-    def find_all_currency_positions(self):
+    def find_all_currency_positions(self) -> List[Tuple[int, int, int]]:
         """
         모든 캐릭터의 은동전(왼쪽 숫자) 위치와 값을 찾기
 
@@ -83,62 +73,26 @@ class DailyScenarioStory(StoryBase):
             [(value, x, y), ...] 리스트
         """
         try:
-            # 전체 화면 캡처
-            screenshot = pyautogui.screenshot()
+            # 화면 캡처
+            screen = self.image_detector.capture_screen(area=self.detection_area)
 
-            # 감지 영역으로 제한
+            # 템플릿 로드
+            template = self.image_detector.load_template(self.template_currency_example)
+
+            # OCR 프로세서로 재화 찾기
+            currency_list = self.ocr_processor.find_currency_values(screen, template)
+
+            # 절대 좌표로 변환
             if self.detection_area:
-                x1, y1, x2, y2 = self.detection_area
-                screenshot = screenshot.crop((x1, y1, x2, y2))
-                offset_x, offset_y = x1, y1
-            else:
-                offset_x, offset_y = 0, 0
+                offset_x, offset_y = self.detection_area[0], self.detection_area[1]
+                currency_list = [
+                    (value, x + offset_x, y + offset_y)
+                    for value, x, y in currency_list
+                ]
 
-            # OpenCV 형식 변환
-            screen = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
-
-            # 재화 예제 템플릿 로드
-            template = cv2.imread(self.template_currency_example)
-            if template is None:
-                self.log(f"⚠ Currency template not found: {self.template_currency_example}")
-                return []
-
-            # 템플릿 매칭 (모든 위치 찾기)
-            result = cv2.matchTemplate(screen, template, cv2.TM_CCOEFF_NORMED)
-            threshold = 0.7
-            locations = np.where(result >= threshold)
-
-            currency_list = []
-            h, w = template.shape[:2]
-
-            for pt in zip(*locations[::-1]):
-                x, y = pt
-
-                # 중복 제거 (가까운 위치는 하나로)
-                is_duplicate = False
-                for _, cx, cy in currency_list:
-                    if abs(cx - x) < w // 2 and abs(cy - y) < h // 2:
-                        is_duplicate = True
-                        break
-
-                if not is_duplicate:
-                    # OCR로 왼쪽 숫자 읽기 (은동전)
-                    roi = screen[y:y+h, x:x+w//2]  # 왼쪽 절반만
-
-                    # OCR 전처리
-                    gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-                    _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-
-                    # 숫자 인식
-                    text = pytesseract.image_to_string(binary, config='--psm 7 digits')
-                    text = ''.join(filter(str.isdigit, text))  # 숫자만 추출
-
-                    if text:
-                        value = int(text)
-                        center_x = x + w // 2 + offset_x
-                        center_y = y + h // 2 + offset_y
-                        currency_list.append((value, center_x, center_y))
-                        self.log(f"  Found currency: {value} at ({center_x}, {center_y})")
+            # 로그 출력
+            for value, x, y in currency_list:
+                self.log(f"  Found currency: {value} at ({x}, {y})")
 
             return currency_list
 
@@ -146,18 +100,27 @@ class DailyScenarioStory(StoryBase):
             self.log(f"❌ Error finding currencies: {e}")
             return []
 
-    def click_at(self, x, y, delay=0.5):
-        """좌표 클릭"""
+    def click_at(self, x: int, y: int, delay: float = 0.5) -> bool:
+        """
+        좌표 클릭 (automation 모듈 사용)
+
+        Args:
+            x: X 좌표
+            y: Y 좌표
+            delay: 클릭 후 대기 시간
+
+        Returns:
+            성공 여부
+        """
         try:
             self.log(f"Clicking at ({x}, {y})")
-            pyautogui.click(x, y)
-            time.sleep(delay)
+            self.automation.click(x, y, delay=delay)
             return True
         except Exception as e:
             self.log(f"❌ Click error: {e}")
             return False
 
-    def start(self):
+    def start(self) -> bool:
         """스토리 실행"""
         try:
             self.log("=" * 60)
@@ -173,7 +136,7 @@ class DailyScenarioStory(StoryBase):
                 return False
 
             self.log("Waiting 3 seconds before click...")
-            time.sleep(3)
+            self.smart_sleep(3)
 
             if not self.click_at(game_start_pos[0], game_start_pos[1]):
                 return False
@@ -182,7 +145,7 @@ class DailyScenarioStory(StoryBase):
 
             # Step 2: 캐릭터 선택 (은동전이 가장 많은 캐릭터)
             self.log("\n[Step 2] Finding character with highest currency...")
-            time.sleep(2)  # 화면 로딩 대기
+            self.smart_sleep(2)  # 화면 로딩 대기
 
             currency_list = self.find_all_currency_positions()
 
@@ -203,7 +166,7 @@ class DailyScenarioStory(StoryBase):
                 self.click_at(click_x, click_y)
 
             self.log("Waiting 2 seconds after character selection...")
-            time.sleep(2)
+            self.smart_sleep(2)
 
             # Step 3: game_start_yellow 버튼 찾기 및 클릭
             self.log("\n[Step 3] Finding 'game_start_yellow' button...")

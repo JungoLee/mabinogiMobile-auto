@@ -4,6 +4,7 @@ Core Automation Module
 마우스/키보드 조작 핵심 기능
 """
 
+from typing import Tuple, Optional, Literal
 import pyautogui
 import time
 import datetime
@@ -16,11 +17,13 @@ if sys.platform == 'win32':
 
 from core.click_tracker import ClickTracker
 
+ButtonType = Literal['left', 'right', 'middle']
+
 
 class Automation:
     """자동화 조작 코어 클래스"""
 
-    def __init__(self, pause_time=0.5, failsafe=True):
+    def __init__(self, pause_time: float = 0.5, failsafe: bool = True):
         """
         Args:
             pause_time: 각 동작 후 대기 시간
@@ -31,13 +34,20 @@ class Automation:
         self.log_enabled = True
         self.click_tracker = ClickTracker()  # 클릭 추적기
 
-    def log(self, message):
+    def log(self, message: str) -> None:
         """로그 출력"""
         if self.log_enabled:
             timestamp = datetime.datetime.now().strftime("%H:%M:%S")
             print(f"[{timestamp}] {message}")
 
-    def click(self, x, y, clicks=1, button='left', delay=0):
+    def click(
+        self,
+        x: int,
+        y: int,
+        clicks: int = 1,
+        button: ButtonType = 'left',
+        delay: float = 0
+    ) -> None:
         """
         마우스 클릭
 
@@ -53,15 +63,15 @@ class Automation:
         if delay > 0:
             time.sleep(delay)
 
-    def double_click(self, x, y, delay=0):
+    def double_click(self, x: int, y: int, delay: float = 0) -> None:
         """더블 클릭"""
         self.click(x, y, clicks=2, delay=delay)
 
-    def right_click(self, x, y, delay=0):
+    def right_click(self, x: int, y: int, delay: float = 0) -> None:
         """우클릭"""
         self.click(x, y, button='right', delay=delay)
 
-    def move_to(self, x, y, duration=0.5, delay=0):
+    def move_to(self, x: int, y: int, duration: float = 0.5, delay: float = 0) -> None:
         """
         마우스 이동
 
@@ -75,7 +85,7 @@ class Automation:
         if delay > 0:
             time.sleep(delay)
 
-    def drag_to(self, x, y, duration=0.5, delay=0):
+    def drag_to(self, x: int, y: int, duration: float = 0.5, delay: float = 0) -> None:
         """
         드래그
 
@@ -89,7 +99,7 @@ class Automation:
         if delay > 0:
             time.sleep(delay)
 
-    def press_key(self, key, delay=0):
+    def press_key(self, key: str, delay: float = 0) -> None:
         """
         키 입력
 
@@ -102,7 +112,7 @@ class Automation:
         if delay > 0:
             time.sleep(delay)
 
-    def hotkey(self, *keys, delay=0):
+    def hotkey(self, *keys: str, delay: float = 0) -> None:
         """
         조합키 입력
 
@@ -115,7 +125,7 @@ class Automation:
         if delay > 0:
             time.sleep(delay)
 
-    def type_text(self, text, interval=0.1):
+    def type_text(self, text: str, interval: float = 0.1) -> None:
         """
         텍스트 입력
 
@@ -126,7 +136,7 @@ class Automation:
         pyautogui.write(text, interval=interval)
         self.log(f"Type text: {text}")
 
-    def scroll(self, amount, delay=0):
+    def scroll(self, amount: int, delay: float = 0) -> None:
         """
         마우스 스크롤
 
@@ -139,12 +149,16 @@ class Automation:
         if delay > 0:
             time.sleep(delay)
 
-    def wait(self, seconds):
+    def wait(self, seconds: float) -> None:
         """대기"""
         self.log(f"Waiting {seconds} seconds...")
         time.sleep(seconds)
 
-    def click_image(self, image_location, delay=0):
+    def click_image(
+        self,
+        image_location: Optional[Tuple[int, int, int, int]],
+        delay: float = 0
+    ) -> None:
         """
         이미지 위치 클릭
 

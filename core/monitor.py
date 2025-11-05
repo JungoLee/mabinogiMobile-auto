@@ -4,6 +4,7 @@ Core Monitor Module
 화면 모니터링 핵심 기능
 """
 
+from typing import Optional, Tuple
 import pyautogui
 import cv2
 import numpy as np
@@ -11,6 +12,7 @@ import datetime
 import os
 import sys
 import time
+from PIL import Image
 
 if sys.platform == 'win32':
     import io
@@ -21,7 +23,11 @@ if sys.platform == 'win32':
 class Monitor:
     """화면 모니터링 코어 클래스"""
 
-    def __init__(self, region=None, screenshot_dir="screenshots"):
+    def __init__(
+        self,
+        region: Optional[Tuple[int, int, int, int]] = None,
+        screenshot_dir: str = "screenshots"
+    ):
         """
         Args:
             region: 모니터링할 영역 (x, y, width, height). None이면 전체 화면
@@ -35,19 +41,19 @@ class Monitor:
         if not os.path.exists(screenshot_dir):
             os.makedirs(screenshot_dir)
 
-    def log(self, message):
+    def log(self, message: str) -> None:
         """로그 출력"""
         if self.log_enabled:
             timestamp = datetime.datetime.now().strftime("%H:%M:%S")
             print(f"[{timestamp}] {message}")
 
-    def capture(self):
+    def capture(self) -> Image.Image:
         """현재 화면 캡처"""
         if self.region:
             return pyautogui.screenshot(region=self.region)
         return pyautogui.screenshot()
 
-    def save_screenshot(self, prefix="screenshot"):
+    def save_screenshot(self, prefix: str = "screenshot") -> str:
         """스크린샷 저장"""
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"{prefix}_{timestamp}.png"
@@ -58,11 +64,17 @@ class Monitor:
         self.log(f"Screenshot saved: {filename}")
         return filepath
 
-    def get_pixel_color(self, x, y):
+    def get_pixel_color(self, x: int, y: int) -> Tuple[int, int, int]:
         """특정 좌표의 픽셀 색상 가져오기"""
         return pyautogui.pixel(x, y)
 
-    def check_color_match(self, x, y, target_color, threshold=30):
+    def check_color_match(
+        self,
+        x: int,
+        y: int,
+        target_color: Tuple[int, int, int],
+        threshold: int = 30
+    ) -> bool:
         """
         특정 좌표의 색상이 목표 색상과 일치하는지 확인
 
@@ -78,7 +90,11 @@ class Monitor:
         diff = sum(abs(current_color[i] - target_color[i]) for i in range(3))
         return diff <= threshold
 
-    def find_image_on_screen(self, template_path, confidence=0.8):
+    def find_image_on_screen(
+        self,
+        template_path: str,
+        confidence: float = 0.8
+    ) -> Optional[Tuple[int, int, int, int]]:
         """
         화면에서 특정 이미지 찾기
 
@@ -97,7 +113,12 @@ class Monitor:
             self.log(f"Image search error: {str(e)}")
         return None
 
-    def wait_for_image(self, template_path, timeout=10, check_interval=0.5):
+    def wait_for_image(
+        self,
+        template_path: str,
+        timeout: float = 10,
+        check_interval: float = 0.5
+    ) -> Optional[Tuple[int, int, int, int]]:
         """
         이미지가 나타날 때까지 대기
 
@@ -122,7 +143,15 @@ class Monitor:
         self.log("Image not found (timeout)")
         return None
 
-    def wait_for_color(self, x, y, target_color, timeout=10, check_interval=0.5, threshold=30):
+    def wait_for_color(
+        self,
+        x: int,
+        y: int,
+        target_color: Tuple[int, int, int],
+        timeout: float = 10,
+        check_interval: float = 0.5,
+        threshold: int = 30
+    ) -> bool:
         """
         특정 색상이 나타날 때까지 대기
 
@@ -148,7 +177,11 @@ class Monitor:
         self.log("Color not matched (timeout)")
         return False
 
-    def detect_screen_change(self, previous_image, threshold=0.05):
+    def detect_screen_change(
+        self,
+        previous_image: Image.Image,
+        threshold: float = 0.05
+    ) -> Tuple[bool, Image.Image, float]:
         """
         화면 변화 감지
 

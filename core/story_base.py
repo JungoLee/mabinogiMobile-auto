@@ -6,6 +6,8 @@ Story Base Module
 
 import sys
 import datetime
+import time
+import cv2
 from core.monitor import Monitor
 from core.automation import Automation
 
@@ -29,6 +31,7 @@ class StoryBase:
         self.automation = Automation()
         self.status = "ready"  # ready, running, completed, failed
         self.log_enabled = True
+        self.realtime_monitor = None  # MainRunner에서 설정될 수 있음
 
     def log(self, message):
         """로그 출력"""
@@ -141,3 +144,26 @@ class StoryBase:
             bool: 성공 여부
         """
         return self.monitor.wait_for_color(x, y, color, timeout)
+
+    def smart_sleep(self, seconds: float) -> None:
+        """
+        스마트 대기 - OpenCV 창 업데이트를 유지하면서 대기
+
+        Args:
+            seconds: 대기 시간 (초)
+        """
+        if seconds <= 0:
+            return
+
+        # 100ms 단위로 나눠서 대기
+        steps = int(seconds * 10)
+        for _ in range(steps):
+            # OpenCV 창 업데이트를 위한 waitKey 호출
+            cv2.waitKey(1)
+            time.sleep(0.1)
+
+        # 남은 시간 대기
+        remaining = seconds - (steps * 0.1)
+        if remaining > 0:
+            cv2.waitKey(1)
+            time.sleep(remaining)

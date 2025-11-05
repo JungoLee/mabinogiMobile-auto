@@ -65,8 +65,10 @@ class RealtimeMonitor:
                 screenshot = pyautogui.screenshot()
                 full_frame = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
 
-                # 픽셀 색상
-                self.pixel_color = screenshot.getpixel((self.mouse_x, self.mouse_y))
+                # 픽셀 색상 (마우스가 화면 범위 내에 있을 때만)
+                if 0 <= self.mouse_x < self.screen_width and 0 <= self.mouse_y < self.screen_height:
+                    self.pixel_color = screenshot.getpixel((self.mouse_x, self.mouse_y))
+                # 범위 밖이면 이전 색상 유지
 
                 # Detection Area 계산 (실제 화면 좌표)
                 box_top_real = int(self.screen_height * 0.5)
@@ -154,7 +156,10 @@ class RealtimeMonitor:
 
             except Exception as e:
                 print(f"\nMonitor error: {e}")
-                break
+                import traceback
+                traceback.print_exc()
+                # 에러가 발생해도 계속 실행
+                time.sleep(0.1)
 
     def get_status(self):
         """현재 상태 반환"""
