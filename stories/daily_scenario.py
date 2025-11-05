@@ -157,7 +157,7 @@ class DailyScenarioStory(StoryBase):
             self.log(f"❌ Click error: {e}")
             return False
 
-    def execute(self):
+    def start(self):
         """스토리 실행"""
         try:
             self.log("=" * 60)

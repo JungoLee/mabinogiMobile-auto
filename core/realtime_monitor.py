@@ -141,14 +141,6 @@ class RealtimeMonitor:
                     box_bottom_real # y2
                 )
 
-                # 테두리 그리기 (붉은색)
-                cv2.rectangle(frame, (0, 0), (new_detection_width-1, new_detection_height-1), (0, 0, 255), 3)
-
-                # 라벨 추가
-                cv2.putText(frame, "Detection Area (Game Controls Only)",
-                           (10, 30),
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
-
                 # 화면 표시 (Detection Area Only)
                 cv2.imshow(self.window_title, frame)
 

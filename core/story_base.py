@@ -34,7 +34,13 @@ class StoryBase:
         """로그 출력"""
         if self.log_enabled:
             timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-            print(f"[{timestamp}] [{self.name}] {message}")
+
+            # 에러 메시지 색상 처리
+            if any(keyword in message for keyword in ["❌", "Error", "error", "Failed", "failed", "⚠", "Warning", "warning"]):
+                # ANSI 색상 코드: 빨간색
+                print(f"\033[91m[{timestamp}] [{self.name}] {message}\033[0m")
+            else:
+                print(f"[{timestamp}] [{self.name}] {message}")
 
     def start(self):
         """스토리 시작 (오버라이드 필수)"""

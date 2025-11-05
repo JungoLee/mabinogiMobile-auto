@@ -4,10 +4,10 @@
 
 ## 필요한 이미지 파일들
 
-### Daily Login Story
-- **게임시작.png** - 초기 게임 시작 버튼 이미지
-- **게임시작_노란색.png** - 캐릭터 선택 후 노란색 게임 시작 버튼 이미지
-- **재화예제.png** - 캐릭터의 재화 정보 영역 (숫자 62 2 형태)
+### Daily Scenario Story
+- **images/UI/game_start.png** - 초기 게임 시작 버튼 이미지
+- **images/UI/game_start_yellow.png** - 캐릭터 선택 후 노란색 게임 시작 버튼 이미지
+- **images/system/character_choice_coins.png** - 캐릭터의 은동전 재화 영역 이미지
 
 ## 이미지 캡처 방법
 

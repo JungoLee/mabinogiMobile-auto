@@ -27,7 +27,7 @@ def main():
     print()
     print("  ✓ 실시간 마우스 위치 및 색상 표시")
     print("  ✓ Detection Area (게임 컨트롤 영역) 표시")
-    print("  ✓ 화면 크기: 80% (조정 가능)")
+    print("  ✓ 화면 크기: 90% (조정 가능)")
     print()
     print("  종료: Q 키 또는 Ctrl+C")
     print("=" * 80)
@@ -41,8 +41,8 @@ def main():
     print("  시작!     ")
     print()
 
-    # 모니터링 실행 (scale=0.8 = 80%)
-    monitor = RealtimeMonitor(window_title="Detection Area Monitor", scale=0.8)
+    # 모니터링 실행 (scale=0.9 = 90%)
+    monitor = RealtimeMonitor(window_title="Detection Area Monitor", scale=0.9)
     try:
         monitor.start()
         print("\n✓ 모니터링 시작됨")

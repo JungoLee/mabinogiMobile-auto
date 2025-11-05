@@ -68,8 +68,8 @@ class RealtimeMonitor:
                 # 픽셀 색상
                 self.pixel_color = screenshot.getpixel((self.mouse_x, self.mouse_y))
 
-                # 화면 크기 조정 (50%)
-                scale = 0.5
+                # 화면 크기 조정 (90%)
+                scale = 0.9
 
                 # Detection Area 계산 (실제 화면 좌표)
                 box_top_real = int(self.screen_height * 0.5)
@@ -143,14 +143,6 @@ class RealtimeMonitor:
                     box_right_real, # x2
                     box_bottom_real # y2
                 )
-
-                # 테두리 그리기 (붉은색)
-                cv2.rectangle(frame, (0, 0), (new_detection_width-1, new_detection_height-1), (0, 0, 255), 3)
-
-                # 라벨 추가
-                cv2.putText(frame, "Detection Area (Game Controls Only)",
-                           (10, 30),
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
 
                 # 화면 표시 (Detection Area Only)
                 cv2.imshow('Daily Scenario - Detection Area', frame)
